@@ -1,53 +1,53 @@
 {
-    "1": {
-        "nom": "S1: La Ruée vers l'Or",
-        "description": "Tout le monde veut travailler. Emergence: Flux vers Travail.",
-        "parametres": {
-            "taille_grille": [35, 23],
-            "nombre_agents": 25,
-            "argent_initial": 0,
-            "energie_initiale": 100,
-            "lieux": {
-                "maisons": 25,
-                "travail": 5,
-                "parcs": 2,
-                "loisirs": 5
-            },
-             "profil_dominant": "Bosseur"
-        }
-    },
-    "2": {
-        "nom": "S2: Densité Critique",
-        "description": "Foule et Stress. Emergence: Embouteillages.",
-        "parametres": {
-            "taille_grille": [35, 23],
-            "nombre_agents": 35,
-            "argent_initial": 50,
-            "energie_initiale": 50,
-            "lieux": {
-                "maisons": 35,
-                "travail": 7,
-                "parcs": 2,
-                "loisirs": 6
-            },
-            "profil_dominant": "Casanier"
-        }
-    },
-    "3": {
-        "nom": "S3: Survie Difficile",
-        "description": "Ressources rares.",
-        "parametres": {
-            "taille_grille": [35, 23],
-            "nombre_agents": 12,
-            "argent_initial": 10,
-            "energie_initiale": 30,
-            "lieux": {
-                "maisons": 12,
-                "travail": 1,
-                "parcs": 1,
-                "loisirs": 1
-            },
-            "profil_dominant": "Equilibre"
-        }
+  "1": {
+    "nom": "La Ruée vers l'Or (Argent/Travail)",
+    "parametres": {
+      "taille_grille": [30, 20],
+      "nombre_agents": 25,
+      "argent_initial": 5,
+      "energie_initiale": 100,
+      "stress_initial": 5,
+      "lieux": {
+        "maisons": 25,
+        "travail": 4,
+        "parcs": 2,
+        "loisirs": 5
+      },
+      "profil_dominant": "Bosseur"
     }
+  },
+  "2": {
+    "nom": "Panique & Densité (Stress/Foule)",
+    "parametres": {
+      "taille_grille": [30, 20],
+      "nombre_agents": 40,
+      "argent_initial": 10,
+      "energie_initiale": 80,
+      "stress_initial": 40,
+      "lieux": {
+        "maisons": 40,
+        "travail": 8,
+        "parcs": 2,
+        "loisirs": 4
+      },
+      "profil_dominant": "Equilibre"
+    }
+  },
+  "3": {
+    "nom": "Survie Difficile (Ressources Rares)",
+    "parametres": {
+      "taille_grille": [30, 20],
+      "nombre_agents": 25,
+      "argent_initial": 50,
+      "energie_initiale": 30,
+      "stress_initial": 20,
+      "lieux": {
+        "maisons": 25,
+        "travail": 2,
+        "parcs": 1,
+        "loisirs": 1
+      },
+      "profil_dominant": "Casanier"
+    }
+  }
 }

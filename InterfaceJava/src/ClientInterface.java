@@ -13,6 +13,7 @@ public class ClientInterface extends JFrame {
 
     // --- Configuration ---
     private final int CELL_SIZE = 30; // Taille visuelle d'une case en pixels
+    private final float FOV_RADIUS_UNITS = 1.0f; // Rayon FOV (2.5 unités de grille)
     private final String SERVER_HOST = "127.0.0.1";
     private final int SERVER_PORT = 5001;
 
@@ -24,16 +25,23 @@ public class ClientInterface extends JFrame {
     private DefaultTableModel tableModel;
     private JSlider speedSlider;
 
+    // --- Composants UI Stats Globales (CORRIGÉ) ---
+    private JLabel lblMoyEnergie;
+    private JLabel lblMoyStress;
+    private JLabel lblMoyArgent;
+    private JLabel lblNbVivants;
+    private JLabel lblNbMorts;
+    private JLabel lblNbOccupes;
+
     // --- Réseau ---
     private PrintWriter out;
     private Socket socket;
     private volatile boolean connected = false;
 
     // --- Données Simulation (Thread Safe) ---
-    private int gridWidth = 35;  // Valeur par défaut, sera mise à jour par le serveur
+    private int gridWidth = 35;
     private int gridHeight = 23;
 
-    // On utilise des listes tampons pour éviter les scintillements
     private List<AgentInfo> agents = new CopyOnWriteArrayList<>();
     private List<LieuInfo> lieux = new CopyOnWriteArrayList<>();
 
@@ -41,11 +49,9 @@ public class ClientInterface extends JFrame {
         setTitle("Super Simulation Multi-Agent | Interface Client");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        // Initialisation de la taille par défaut
         resizeWindow(gridWidth, gridHeight);
         setLocationRelativeTo(null);
 
-        // Système de cartes pour basculer entre Menu et Jeu
         cardLayout = new CardLayout();
         mainContainer = new JPanel(cardLayout);
 
@@ -53,24 +59,16 @@ public class ClientInterface extends JFrame {
         mainContainer.add(createGameInterface(), "GAME");
 
         add(mainContainer);
+        setVisible(true);
 
-        // Lancement du thread réseau (ne bloque pas l'interface)
         new Thread(this::networkLoop).start();
     }
 
-    /**
-     * Redimensionne la fenêtre en fonction de la taille de la grille reçue
-     */
     private void resizeWindow(int w, int h) {
-        // Largeur = Grille + Panneau Stats (400px) + Marges
-        int width = (w * CELL_SIZE) + 420;
-        // Hauteur = Grille + Panneau Contrôle (80px) + Marges
-        int height = (h * CELL_SIZE) + 120;
-
-        // Limites minimales pour que l'interface reste utilisable
-        width = Math.max(width, 1000);
-        height = Math.max(height, 700);
-
+        int width = (w * CELL_SIZE) + 450;
+        int height = (h * CELL_SIZE) + 150;
+        width = Math.max(width, 1050);
+        height = Math.max(height, 750);
         setSize(width, height);
         if (simulationPanel != null) {
             simulationPanel.setPreferredSize(new Dimension(w * CELL_SIZE, h * CELL_SIZE));
@@ -83,6 +81,7 @@ public class ClientInterface extends JFrame {
     // ========================================================================
 
     private JPanel createMenuPanel() {
+        // ... (Pas de changement) ...
         JPanel menu = new JPanel(new GridBagLayout());
         menu.setBackground(new Color(30, 30, 35));
 
@@ -92,7 +91,7 @@ public class ClientInterface extends JFrame {
 
         JLabel title = new JLabel("SIMULATION VILLE INTELLIGENTE");
         title.setFont(new Font("Segoe UI", Font.BOLD, 32));
-        title.setForeground(new Color(255, 105, 180)); // Pink
+        title.setForeground(new Color(255, 105, 180));
         menu.add(title, gbc);
 
         gbc.gridy++;
@@ -124,45 +123,61 @@ public class ClientInterface extends JFrame {
         // 1. Zone Centrale (Carte)
         simulationPanel = new SimulationPanel();
         simulationPanel.setBackground(new Color(45, 45, 50));
-        // ScrollPane au cas où la grille est géante
         JScrollPane scrollSim = new JScrollPane(simulationPanel);
         scrollSim.setBorder(BorderFactory.createEmptyBorder());
         gamePanel.add(scrollSim, BorderLayout.CENTER);
 
-        // 2. Zone Droite (Tableau et Légende)
-        JPanel rightPanel = new JPanel(new BorderLayout());
-        rightPanel.setPreferredSize(new Dimension(400, 0));
+        // 2. Zone Droite (Priorisation: Stats > Tableau > Légende)
+        JPanel rightPanel = new JPanel();
+        rightPanel.setLayout(new BoxLayout(rightPanel, BoxLayout.Y_AXIS));
+        rightPanel.setPreferredSize(new Dimension(420, 0));
         rightPanel.setBackground(new Color(60, 60, 65));
 
-        // Tableau Stats
+        // a. Panneau Stats Globales (Haut)
+        JPanel statsPanelContainer = new JPanel(new BorderLayout());
+        statsPanelContainer.add(createGlobalStatsPanel(), BorderLayout.NORTH);
+        statsPanelContainer.add(createRepartitionPanel(), BorderLayout.CENTER); // NOUVEAU panel Repartition
+        statsPanelContainer.setMaximumSize(new Dimension(420, 200));
+        rightPanel.add(statsPanelContainer);
+
+        // b. Tableau Stats Agents (Milieu)
         String[] columnNames = {"Nom", "Énergie", "Stress", "$", "État"};
         tableModel = new DefaultTableModel(columnNames, 0);
         statsTable = new JTable(tableModel);
         statsTable.setBackground(new Color(50, 50, 55));
         statsTable.setForeground(Color.WHITE);
         statsTable.setFillsViewportHeight(true);
+        statsTable.setGridColor(Color.DARK_GRAY);
         JScrollPane tableScroll = new JScrollPane(statsTable);
-        tableScroll.setPreferredSize(new Dimension(400, 400));
-        rightPanel.add(tableScroll, BorderLayout.NORTH);
 
-        // Légende
-        rightPanel.add(createLegendPanel(), BorderLayout.CENTER);
+        tableScroll.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(new Color(80, 80, 90)), "Agents Détaillés", TitledBorder.LEFT, TitledBorder.TOP,
+                new Font("Arial", Font.BOLD, 14), Color.LIGHT_GRAY));
+
+        tableScroll.setPreferredSize(new Dimension(420, 400));
+        rightPanel.add(tableScroll);
+
+        // c. Légende (Bas)
+        JScrollPane legendScroll = createLegendPanelScrollable();
+        legendScroll.setPreferredSize(new Dimension(420, 150));
+        legendScroll.setMaximumSize(new Dimension(420, 200));
+        rightPanel.add(legendScroll);
+
         gamePanel.add(rightPanel, BorderLayout.EAST);
 
         // 3. Zone Bas (Contrôles)
         JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 10));
-        controlPanel.setBackground(new Color(20, 20, 25));
+        controlPanel.setBackground(new Color(50, 20, 100));
 
         JButton btnBack = new JButton("⬅ Retour Menu / Stop");
         btnBack.setBackground(new Color(200, 100, 100));
         btnBack.addActionListener(e -> retourMenu());
 
-        // Slider Vitesse
         speedSlider = new JSlider(1, 10, 2);
         speedSlider.setMajorTickSpacing(1);
         speedSlider.setPaintTicks(true);
         speedSlider.setPaintLabels(true);
-        speedSlider.setBackground(new Color(20, 20, 25));
+        speedSlider.setBackground(new Color(50, 20, 100));
         speedSlider.setForeground(Color.LIGHT_GRAY);
         speedSlider.addChangeListener(e -> envoyer("SPEED:" + speedSlider.getValue()));
 
@@ -178,7 +193,58 @@ public class ClientInterface extends JFrame {
         return gamePanel;
     }
 
-    private JPanel createLegendPanel() {
+    private JPanel createGlobalStatsPanel() {
+        JPanel stats = new JPanel(new GridLayout(3, 2, 5, 5));
+        stats.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(Color.LIGHT_GRAY), "Moyennes (Vivants)", TitledBorder.LEFT, TitledBorder.TOP,
+                new Font("Arial", Font.BOLD, 14), Color.CYAN));
+        stats.setBackground(new Color(60, 60, 65));
+
+        lblMoyEnergie = createStatLabel("N/A");
+        lblMoyStress = createStatLabel("N/A");
+        lblMoyArgent = createStatLabel("N/A");
+
+        addStatRow(stats, "Énergie Moy:", lblMoyEnergie);
+        addStatRow(stats, "Stress Moy:", lblMoyStress);
+        addStatRow(stats, "Argent Moy:", lblMoyArgent);
+
+        return stats;
+    }
+
+    // NOUVEAU PANEL POUR LA RÉPARTITION
+    private JPanel createRepartitionPanel() {
+        JPanel rep = new JPanel(new GridLayout(3, 2, 5, 5));
+        rep.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(Color.LIGHT_GRAY), "Répartition", TitledBorder.LEFT, TitledBorder.TOP,
+                new Font("Arial", Font.BOLD, 14), Color.CYAN));
+        rep.setBackground(new Color(60, 60, 65));
+
+        lblNbVivants = createStatLabel("N/A");
+        lblNbMorts = createStatLabel("N/A");
+        lblNbOccupes = createStatLabel("N/A");
+
+        addStatRow(rep, "Agents Vivants:", lblNbVivants);
+        addStatRow(rep, "Agents Morts:", lblNbMorts);
+        addStatRow(rep, "Agents Occupés:", lblNbOccupes);
+
+        return rep;
+    }
+
+    private JLabel createStatLabel(String text) {
+        JLabel l = new JLabel(text);
+        l.setForeground(Color.GREEN);
+        l.setFont(new Font("Consolas", Font.BOLD, 14));
+        return l;
+    }
+
+    private void addStatRow(JPanel p, String title, JLabel val) {
+        JLabel t = new JLabel(title);
+        t.setForeground(Color.WHITE);
+        p.add(t);
+        p.add(val);
+    }
+
+    private JScrollPane createLegendPanelScrollable() {
         JPanel legend = new JPanel();
         legend.setLayout(new BoxLayout(legend, BoxLayout.Y_AXIS));
         legend.setBackground(new Color(60, 60, 65));
@@ -191,11 +257,17 @@ public class ClientInterface extends JFrame {
         legend.add(createLegendItem("🌳 Parc", new Color(50, 120, 70)));
         legend.add(createLegendItem("🍿 Loisir", new Color(130, 50, 130)));
         legend.add(Box.createVerticalStrut(10));
-        legend.add(new JLabel("<html><font color='white'>--- État Agents ---</font></html>"));
-        legend.add(createLegendItem("🟢 Sain (Energie > 20, Stress < 70)", new Color(50, 200, 50)));
-        legend.add(createLegendItem("🔴 Critique (Fatigué ou Stressé)", Color.RED));
 
-        return legend;
+        legend.add(new JLabel("<html><font color='white'>--- État Agents ---</font></html>"));
+        legend.add(createLegendItem("🟢 Sain", new Color(50, 200, 50)));
+        legend.add(createLegendItem("🔴 Critique", Color.RED));
+        legend.add(createLegendItem("⚪ Occupé (Gris)", Color.GRAY));
+        legend.add(createLegendItem("⚫ Mort (Noir)", Color.BLACK));
+
+        JScrollPane scroll = new JScrollPane(legend);
+        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        return scroll;
     }
 
     private JLabel createLegendItem(String text, Color color) {
@@ -224,7 +296,6 @@ public class ClientInterface extends JFrame {
     private void networkLoop() {
         while (true) {
             try {
-                // Tentative de connexion
                 if (socket == null || socket.isClosed()) {
                     try {
                         socket = new Socket(SERVER_HOST, SERVER_PORT);
@@ -232,7 +303,7 @@ public class ClientInterface extends JFrame {
                         connected = true;
                         System.out.println("Connecté au serveur Python.");
                     } catch (IOException e) {
-                        Thread.sleep(1000); // Réessaie toutes les secondes
+                        Thread.sleep(1000);
                         continue;
                     }
                 }
@@ -240,18 +311,17 @@ public class ClientInterface extends JFrame {
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 String line;
 
-                // Buffers temporaires pour construire la frame
+                // Tampons pour la trame en cours
                 List<AgentInfo> bufferAgents = new ArrayList<>();
                 List<LieuInfo> bufferLieux = new ArrayList<>();
+                String[] tempStats = null;
 
                 while ((line = in.readLine()) != null) {
                     if (line.startsWith("CONFIG")) {
-                        // Reception taille grille: CONFIG;W;H
                         String[] parts = line.split(";");
                         if (parts.length >= 3) {
                             int w = Integer.parseInt(parts[1]);
                             int h = Integer.parseInt(parts[2]);
-                            // Mise à jour Thread-Safe de l'UI
                             SwingUtilities.invokeLater(() -> {
                                 this.gridWidth = w;
                                 this.gridHeight = h;
@@ -260,62 +330,103 @@ public class ClientInterface extends JFrame {
                         }
                     }
                     else if (line.equals("END")) {
-                        // Fin de trame : on met à jour l'affichage
-                        // On copie les buffers dans les listes principales
+                        // Traitement de la fin de trame
                         final List<AgentInfo> finalAgents = new ArrayList<>(bufferAgents);
                         final List<LieuInfo> finalLieux = new ArrayList<>(bufferLieux);
+                        final String[] finalStats = tempStats;
 
+                        // Mise à jour des listes partagées (thread-safe)
+                        this.agents = new CopyOnWriteArrayList<>(finalAgents);
+                        this.lieux = new CopyOnWriteArrayList<>(finalLieux);
+
+                        // Mise à jour de l'UI dans le thread de l'EDT
                         SwingUtilities.invokeLater(() -> {
-                            this.agents = finalAgents;
-                            this.lieux = finalLieux;
                             if (mainContainer.isVisible()) {
-                                simulationPanel.repaint(); // Redessine la carte
-                                updateTable();             // Met à jour le tableau
+                                simulationPanel.repaint(); // Redessin de la carte
+                                updateTable(); // Mise à jour du tableau
+
+                                // Mise à jour des labels stats (Format: STATS;MoyNrj;MoyStress;MoyArg;NbVivants;NbMorts;NbOccupes)
+                                // Doit avoir au moins 7 champs [0] à [6]
+                                if (finalStats != null && finalStats.length >= 7) {
+
+                                    // Moyennes (Index 1 à 3)
+                                    lblMoyEnergie.setText(String.format("%.1f", Double.parseDouble(finalStats[1])));
+                                    lblMoyStress.setText(String.format("%.1f", Double.parseDouble(finalStats[2])));
+                                    lblMoyArgent.setText(String.format("%.1f", Double.parseDouble(finalStats[3])));
+
+                                    // Répartition (Index 4 à 6)
+                                    lblNbVivants.setText(finalStats[4]);
+                                    lblNbMorts.setText(finalStats[5]);
+                                    lblNbOccupes.setText(finalStats[6]);
+                                } else {
+                                    // Réinitialisation si aucune stat valide n'est reçue
+                                    lblMoyEnergie.setText("N/A");
+                                    lblMoyStress.setText("N/A");
+                                    lblMoyArgent.setText("N/A");
+                                    lblNbVivants.setText("N/A");
+                                    lblNbMorts.setText("N/A");
+                                    lblNbOccupes.setText("N/A");
+                                }
                             }
                         });
 
-                        // Reset buffers
+                        // Vider les tampons pour la prochaine trame
                         bufferAgents.clear();
                         bufferLieux.clear();
+                        tempStats = null;
+
                     }
                     else {
-                        // Parsing des données
-                        parseLine(line, bufferAgents, bufferLieux);
+                        // Traitement des lignes de données
+                        String[] p = line.split(";");
+                        String type = p[0];
+
+                        if (type.equals("AGENT")) {
+                            // AGENT;Nom;X;Y;Energie;Stress;Argent;Etat;Angle (9 champs total)
+                            if (p.length == 9) {
+                                bufferAgents.add(new AgentInfo(
+                                        p[1],
+                                        Float.parseFloat(p[2]), Float.parseFloat(p[3]),
+                                        Float.parseFloat(p[4]), Float.parseFloat(p[5]), Float.parseFloat(p[6]),
+                                        p[7], Float.parseFloat(p[8])
+                                ));
+                            }
+                        }
+                        else if (type.equals("MAISON") || type.equals("TRAVAIL") || type.equals("PARC") || type.equals("LOISIR")) {
+                            // LIEU;X;Y;OCCUPE (4 champs)
+                            if (p.length >= 3) {
+                                boolean occupe = p.length > 3 && p[3].equals("1");
+                                bufferLieux.add(new LieuInfo(type, Float.parseFloat(p[1]), Float.parseFloat(p[2]), occupe));
+                            }
+                        }
+                        else if (type.equals("STATS")) {
+                            // STATS;MoyNrj;MoyStress;MoyArg;NbVivants;NbMorts;NbOccupes (7 champs total)
+                            tempStats = p;
+                        }
                     }
                 }
             } catch (Exception e) {
                 connected = false;
                 socket = null;
-                System.out.println("Déconnexion serveur... Tentative de reconnexion.");
+                System.out.println("Déconnexion serveur... Tentative de reconnexion: " + e.getMessage());
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException interruptedException) {
+                    Thread.currentThread().interrupt();
+                }
             }
         }
     }
 
-    private void parseLine(String line, List<AgentInfo> bufA, List<LieuInfo> bufL) {
-        try {
-            String[] p = line.split(";");
-            String type = p[0];
-
-            if (type.equals("AGENT")) {
-                // AGENT;Nom;X;Y;Energie;Stress;Argent;Etat;Angle
-                bufA.add(new AgentInfo(
-                        p[1],
-                        Float.parseFloat(p[2]), Float.parseFloat(p[3]),
-                        Float.parseFloat(p[4]), Float.parseFloat(p[5]), Float.parseFloat(p[6]),
-                        p[7], Float.parseFloat(p[8])
-                ));
-            }
-            else if (type.equals("MAISON") || type.equals("TRAVAIL") || type.equals("PARC") || type.equals("LOISIR")) {
-                // TYPE;X;Y;OCCUPE
-                boolean occupe = p.length > 3 && p[3].equals("1");
-                bufL.add(new LieuInfo(type, Float.parseFloat(p[1]), Float.parseFloat(p[2]), occupe));
-            }
-        } catch (Exception ignored) {}
-    }
-
     private void lancerScenario(int id) {
+        lblMoyEnergie.setText("Calc...");
+        lblMoyStress.setText("Calc...");
+        lblMoyArgent.setText("Calc...");
+        lblNbVivants.setText("...");
+        lblNbMorts.setText("...");
+        lblNbOccupes.setText("...");
+
         envoyer("SCENARIO:" + id);
-        // Remettre slider par défaut
         speedSlider.setValue(2);
         envoyer("SPEED:2");
         cardLayout.show(mainContainer, "GAME");
@@ -331,27 +442,26 @@ public class ClientInterface extends JFrame {
     }
 
     private void updateTable() {
-        // Optimisation: ne recréer pas tout le modèle si le nombre de lignes est le même
-        if (tableModel.getRowCount() != agents.size()) {
-            tableModel.setRowCount(0);
+        int newSize = agents.size();
+
+        // Optimise le redimensionnement du tableau
+        if (tableModel.getRowCount() != newSize) {
+            tableModel.setRowCount(newSize);
         }
 
-        for (int i = 0; i < agents.size(); i++) {
+        for (int i = 0; i < newSize; i++) {
             AgentInfo a = agents.get(i);
-            if (tableModel.getRowCount() <= i) {
-                tableModel.addRow(new Object[]{a.nom, (int)a.nrj, (int)a.stress, (int)a.arg, a.etat});
-            } else {
-                tableModel.setValueAt(a.nom, i, 0);
-                tableModel.setValueAt((int)a.nrj, i, 1);
-                tableModel.setValueAt((int)a.stress, i, 2);
-                tableModel.setValueAt((int)a.arg, i, 3);
-                tableModel.setValueAt(a.etat, i, 4);
-            }
+
+            tableModel.setValueAt(a.nom, i, 0);
+            tableModel.setValueAt((int)a.nrj, i, 1);
+            tableModel.setValueAt((int)a.stress, i, 2);
+            tableModel.setValueAt((int)a.arg, i, 3);
+            tableModel.setValueAt(a.etat, i, 4);
         }
     }
 
     // ========================================================================
-    // PANNEAU DE DESSIN CUSTOMISÉ
+    // PANNEAU DE DESSIN
     // ========================================================================
     class SimulationPanel extends JPanel {
         @Override
@@ -360,6 +470,16 @@ public class ClientInterface extends JFrame {
             Graphics2D g2 = (Graphics2D) g;
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
+            // 1. Dessine la grille de fond
+            for (int x = 0; x < gridWidth; x++) {
+                for (int y = 0; y < gridHeight; y++) {
+                    g2.setColor(new Color(50, 50, 55));
+                    g2.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                    g2.setColor(new Color(40, 40, 45));
+                    g2.drawRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                }
+            }
+
             if (!connected) {
                 g2.setColor(Color.WHITE);
                 g2.setFont(new Font("Arial", Font.BOLD, 20));
@@ -367,13 +487,10 @@ public class ClientInterface extends JFrame {
                 return;
             }
 
-            // 1. DESSIN DES LIEUX
+            // 2. DESSIN LIEUX
             for (LieuInfo l : lieux) {
-                // Conversion coordonnées grille -> pixels
                 int x = (int) (l.x * CELL_SIZE);
                 int y = (int) (l.y * CELL_SIZE);
-
-                // Sécurité hors bornes
                 if (l.x >= gridWidth || l.y >= gridHeight) continue;
 
                 Color color = Color.GRAY;
@@ -386,66 +503,82 @@ public class ClientInterface extends JFrame {
                     case "LOISIR" -> { color = new Color(130, 50, 130); emoji = "🍿"; }
                 }
 
-                // Fond
                 g2.setColor(color);
                 g2.fillRect(x, y, CELL_SIZE, CELL_SIZE);
-
-                // Bordure légère
                 g2.setColor(color.darker());
                 g2.drawRect(x, y, CELL_SIZE, CELL_SIZE);
-
-                // Emoji
                 g2.setColor(Color.WHITE);
                 g2.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 20));
-                // Centrage approximatif
                 g2.drawString(emoji, x + 2, y + 24);
 
-                // Marqueur d'occupation (petit point cyan)
                 if (l.occupe) {
                     g2.setColor(Color.CYAN);
                     g2.fillOval(x + 22, y + 2, 6, 6);
                 }
             }
 
-            // 2. DESSIN DES AGENTS
+            // 3. DESSIN AGENTS
             for (AgentInfo a : agents) {
                 if (a.x >= gridWidth || a.y >= gridHeight) continue;
-
                 int cx = (int) (a.x * CELL_SIZE) + CELL_SIZE / 2;
                 int cy = (int) (a.y * CELL_SIZE) + CELL_SIZE / 2;
 
-                // Cône de vision (Direction)
-                g2.setColor(new Color(255, 255, 255, 40));
-                // Math.toDegrees car Arc2D attend des degrés
-                // -angle car l'axe Y est inversé en écran (bas = positif) vs trigo classique
+                // Dessin du FOV (Cone de vision)
+                int fovRadiusPixels = (int) (FOV_RADIUS_UNITS * CELL_SIZE);
+                int fovDiameterPixels = 2 * fovRadiusPixels;
                 double deg = Math.toDegrees(-a.ang);
-                g2.fill(new Arc2D.Double(cx - 30, cy - 30, 60, 60, deg - 30, 60, Arc2D.PIE));
+                double startAngle = deg - 30;
+                double extentAngle = 60;
 
-                // Corps de l'agent
-                Color bodyColor = (a.stress > 70 || a.nrj < 20) ? Color.RED : new Color(50, 200, 50);
+                g2.setColor(new Color(255, 255, 255, 40));
+                g2.fill(new Arc2D.Double(
+                        cx - fovRadiusPixels,
+                        cy - fovRadiusPixels,
+                        fovDiameterPixels,
+                        fovDiameterPixels,
+                        startAngle,
+                        extentAngle,
+                        Arc2D.PIE
+                ));
+
+                // DÉTERMINATION COULEUR AGENT
+                Color bodyColor;
+                if (a.etat.equals("Mort")) {
+                    bodyColor = Color.BLACK;
+                } else if (a.etat.equals("Occupé")) {
+                    bodyColor = Color.GRAY; // AGENT OCCUPÉ EN GRIS
+                } else {
+                    // VIVANT / EN MOUVEMENT
+                    bodyColor = (a.stress > 70 || a.nrj < 20) ? Color.RED : new Color(50, 200, 50);
+                }
+
+                // Dessin du corps
                 g2.setColor(bodyColor);
                 g2.fillOval(cx - 6, cy - 6, 12, 12);
 
-                // Contour agent
+                // Dessin du contour et du nom
                 g2.setColor(Color.WHITE);
                 g2.drawOval(cx - 6, cy - 6, 12, 12);
-
-                // Nom de l'agent
                 g2.setFont(new Font("Arial", Font.PLAIN, 10));
                 g2.drawString(a.nom, cx - 5, cy - 8);
+
+                // Marqueur pour Mort
+                if (a.etat.equals("Mort")) {
+                    g2.setColor(Color.RED);
+                    g2.setFont(new Font("Arial", Font.BOLD, 10));
+                    g2.drawString("X", cx - 3, cy + 4);
+                }
             }
         }
     }
 
-    // Records pour stocker les données reçues
     record AgentInfo(String nom, float x, float y, float nrj, float stress, float arg, String etat, float ang) {}
     record LieuInfo(String type, float x, float y, boolean occupe) {}
 
-    // Point d'entrée
     public static void main(String[] args) {
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception ignored) {}
-        SwingUtilities.invokeLater(() -> new ClientInterface().setVisible(true));
+        SwingUtilities.invokeLater(() -> new ClientInterface());
     }
 }

@@ -6,12 +6,12 @@ import time
 
 # --- CONSTANTES PHYSIQUES ---
 FORCE_ATTRACTION = 3.0
-FORCE_REPULSION_AGENT = 8.0
-FORCE_REPULSION_MUR = 50.0
+FORCE_REPULSION_AGENT = 6.0
+FORCE_REPULSION_MUR = 30.0
 DIST_ARRET = 0.5
 RAYON_FOV = 4.0
 MAX_VITESSE = 1.0
-DAMPING_FACTOR = 0.85  # NOUVEAU: Facteur de lissage (entre 0.8 et 0.95)
+DAMPING_FACTOR = 0.92# NOUVEAU: Facteur de lissage (entre 0.8 et 0.95)
 
 
 # ===========================================================
@@ -20,8 +20,8 @@ DAMPING_FACTOR = 0.85  # NOUVEAU: Facteur de lissage (entre 0.8 et 0.95)
 def generer_lieu(largeur_ville, hauteur_ville, symbole, capacite, coordonnees_occupees_set):
     nb_places = capacite
     # Marges pour ne pas coller aux bords absolus
-    min_x, max_x = 1, largeur_ville - 2
-    min_y, max_y = 1, hauteur_ville - 2
+    min_x, max_x = 1, largeur_ville - 1
+    min_y, max_y = 1, hauteur_ville - 1
 
     for _ in range(500):
         taille_x = min(4, max(1, int(nb_places ** 0.5) + 1))

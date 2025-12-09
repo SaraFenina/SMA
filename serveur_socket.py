@@ -1,8 +1,6 @@
 import socket
 import threading
 import time
-# Importation de la logique depuis ClassPrincipale
-# Elle contient maintenant la définition de Simulation qui charge la configuration JSON.
 from ClassPrincipale import Simulation
 
 HOST = "127.0.0.1"
@@ -10,7 +8,7 @@ PORT = 5001
 
 # Variables globales pour la simulation actuelle
 sim = None
-lock = threading.Lock()  # Verrou pour l'accès concurrent aux données
+lock = threading.Lock()
 
 
 def send_config(conn, simulation):
@@ -83,6 +81,13 @@ def client_handler(conn):
                             f"AGENT;{a.nom};{a.x:.2f};{a.y:.2f};{a.energie:.1f};{a.stress:.1f};{a.argent:.1f};{a.etat};{a.angle_vue:.2f}"
                         )
 
+                    # 3. ENVOI DES STATISTIQUES (SI DISPONIBLES)
+                    # STATS;MoyNrj;MoyStress;MoyArg;NbVivants;Temps
+                    if sim.stats_aggregator.stats_log:
+                        ls = sim.stats_aggregator.stats_log[-1]
+                        lignes.append(
+                            f"STATS;{ls['moyenne_energie']};{ls['moyenne_stress']};{ls['moyenne_argent']};{ls['agents_vivants']};{ls['agents_morts']};{ls['agents_occupes']}"
+                        )
             if lignes:
                 # Envoi global + marqueur de fin de trame
                 msg = "\n".join(lignes) + "\nEND\n"
