@@ -8,7 +8,7 @@ Ce projet implémente une **Simulation Multi-Agents (SMA)** pour modéliser les 
 
 Ce projet est le fruit d'une collaboration avec une répartition claire des responsabilités :
 
-### [Sara/Shinhae]
+### [Sara/SaraFenina]
 
 * **Architecture Principale :** Création et gestion du fichier `ClassPrincipale.py` (classes `Simulation`, `Agent`, `Ville`).
 * **Interface Client :** Développement de l'interface graphique `ClientInterface.java`.
