@@ -8,16 +8,16 @@ Ce projet implémente une **Simulation Multi-Agents (SMA)** pour modéliser les 
 
 Ce projet est le fruit d'une collaboration avec une répartition claire des responsabilités :
 
-### [Nom/Pseudo du Contributeur 1]
+### [Sara/Shinhae]
 
 * **Architecture Principale :** Création et gestion du fichier `ClassPrincipale.py` (classes `Simulation`, `Agent`, `Ville`).
 * **Interface Client :** Développement de l'interface graphique `ClientInterface.java`.
 
-### [Nom/Pseudo du Contributeur 2]
+### [Prisca/ambinintsoaprisca]
 
 * **Moteur de Déplacement :** Implémentation complète du pathfinding et du mouvement dans `deplacerast.py`.
 
-### [Nom/Pseudo du Contributeur 3]
+### [Sarah/Sarhaivie]
 
 * **Logique Agent & Stats :** Création des fonctions de décision et de mise à jour des stats dans `fonctionsPrincipales.py`.
 * **Réseau & Configuration :** Développement du `serveur_socket.py` et gestion du fichier `config_scenarios.json`.
