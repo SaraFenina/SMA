@@ -8,9 +8,13 @@ PORT = 5001
 
 # Variables globales pour la simulation actuelle
 sim = None
-lock = threading.Lock()
+lock = threading.Lock()  # Lock pour protéger l'accès à l'objet 'sim' lui-même
 
 
+# Envoie les dimensions de la grille au client lors de la connexion ou du changement de scénario.
+# Paramètres :
+#   - conn (socket) : La connexion client.
+#   - simulation (Simulation) : L'objet simulation actuel.
 def send_config(conn, simulation):
     """Envoie la configuration de la grille au client."""
     if simulation and simulation.ville:
@@ -22,6 +26,9 @@ def send_config(conn, simulation):
             print(f"Erreur d'envoi CONFIG: {e}")
 
 
+# Gère un client unique après acceptation de la connexion. Crée un thread pour l'écoute des commandes.
+# Paramètres :
+#   - conn (socket) : La connexion client.
 def client_handler(conn):
     """Gère un client connecté (écoute des commandes et envoi des données)."""
     global sim
@@ -37,11 +44,12 @@ def client_handler(conn):
         while True:
             try:
                 data = conn.recv(1024).decode()
-                if not data: break
+                if not data: break  # Déconnexion normale
 
                 parts = data.strip().split(":")
                 cmd = parts[0]
 
+                # Protège l'accès à l'objet simulation globale (démarrage/arrêt/changement)
                 with lock:
                     if cmd == "SCENARIO":
                         if sim: sim.arreter()
@@ -57,12 +65,14 @@ def client_handler(conn):
                 print(f"Erreur/Déconnexion client (écoute): {e}")
                 break
 
+    # Démarre l'écoute des commandes en arrière-plan
     threading.Thread(target=listen, daemon=True).start()
 
     # Boucle d'envoi des données (taux de rafraîchissement)
     while True:
         try:
             lignes = []
+            # Protège l'accès aux données de la simulation pour l'envoi
             with lock:
                 if sim and sim.running:
                     # 1. ENVOI DONNÉES LIEUX
@@ -82,18 +92,20 @@ def client_handler(conn):
                         )
 
                     # 3. ENVOI DES STATISTIQUES (SI DISPONIBLES)
-                    # STATS;MoyNrj;MoyStress;MoyArg;NbVivants;Temps
+                    # STATS;MoyNrj;MoyStress;MoyArg;NbVivants;NbMorts;NbOccupes
                     if sim.stats_aggregator.stats_log:
                         ls = sim.stats_aggregator.stats_log[-1]
                         lignes.append(
                             f"STATS;{ls['moyenne_energie']};{ls['moyenne_stress']};{ls['moyenne_argent']};{ls['agents_vivants']};{ls['agents_morts']};{ls['agents_occupes']}"
                         )
+
+            # Envoi de la trame complète si des données sont disponibles
             if lignes:
                 # Envoi global + marqueur de fin de trame
                 msg = "\n".join(lignes) + "\nEND\n"
                 conn.sendall(msg.encode())
 
-            time.sleep(0.05)  # ~20 FPS
+            time.sleep(0.05)  # ~20 FPS pour le client
 
         except (BrokenPipeError, ConnectionResetError):
             print("Client déconnecté (envoi).")
@@ -103,23 +115,26 @@ def client_handler(conn):
             break
 
 
+# Fonction principale qui initialise la simulation et démarre le serveur d'écoute des connexions.
 def main():
     """Initialise la simulation et le serveur."""
     global sim
 
-    # Démarrage automatique du scénario 1
+    # Démarrage automatique du scénario 1 pour une exécution immédiate
     sim = Simulation("1")
     sim.demarrer()
     print("Serveur lancé sur 5001 (Simu S1 auto).")
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Réutiliser le port
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Réutiliser le port immédiatement
     s.bind((HOST, PORT))
     s.listen()
+
+    # Boucle d'acceptation de nouvelles connexions
     while True:
         try:
             conn, addr = s.accept()
-            # Gérer le client dans un nouveau thread
+            # Gérer le client dans un nouveau thread pour le non-blocage
             threading.Thread(target=client_handler, args=(conn,), daemon=True).start()
         except KeyboardInterrupt:
             print("\nArrêt du serveur.")
