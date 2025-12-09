@@ -1,3 +1,8 @@
+"""
+    Ecrit par Guilleminot, Sarah
+
+"""
+
 import random
 import time
 from deplacerast import deplacer

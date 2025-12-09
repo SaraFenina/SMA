@@ -1,3 +1,7 @@
+"""
+    Ecrit par Rakoto Ambinintsoa Prisca
+"""
+
 import heapq
 import math
 import random
@@ -29,8 +33,8 @@ DAMPING_FACTOR = 0.92        # Facteur de lissage/amortissement (réduit la vite
 def generer_lieu(largeur_ville, hauteur_ville, symbole, capacite, coordonnees_occupees_set):
     nb_places = capacite
     # Marges pour ne pas coller aux bords absolus
-    min_x, max_x = 1, largeur_ville - 1
-    min_y, max_y = 1, hauteur_ville - 1
+    min_x, max_x = 1, largeur_ville - 2
+    min_y, max_y = 1, hauteur_ville - 2
 
     for _ in range(500):
         # Calcule la taille approximative du rectangle

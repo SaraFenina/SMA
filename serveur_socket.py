@@ -1,3 +1,7 @@
+"""
+    Ecrit par Guilleminot, Sarah
+
+"""
 import socket
 import threading
 import time
